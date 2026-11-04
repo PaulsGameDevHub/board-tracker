@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  /* App-specific pieces, built from the house variables.
+     Amber is added for "spare" (Paul asked for red / green / yellow). */
+  :root{ --amber:#8A6512; --amber-wash:#F4ECD2; --amber-line:#DCC68E; }
+  main{min-width:0;}
+  @media(max-width:860px){.toast{bottom:84px;}}
+
+  /* Key */
+  .key{display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 6px;font-size:12px;color:var(--ink-soft);}
+  .key span{display:inline-flex;align-items:center;gap:6px;}
+  .key i{width:12px;height:12px;border-radius:3px;border:1px solid var(--s);background:var(--sw);display:inline-block;}
+
+  /* Status colours, shared by chips, counts and rows */
+  .s-short{--s:var(--warn);--sw:var(--warn-wash);--sl:#e2b8a8;}
+  .s-ok{--s:var(--accent-deep);--sw:var(--accent-wash);--sl:#b9d6d1;}
+  .s-spare{--s:var(--amber);--sw:var(--amber-wash);--sl:var(--amber-line);}
+  .s-none{--s:var(--ink-soft);--sw:var(--panel);--sl:var(--line-strong);}
+
+  /* Board rows */
+  .brd{border-bottom:1px solid var(--line);}
+  .brd:last-child{border-bottom:none;}
+  .brd-head{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 14px;align-items:center;padding:14px 4px;}
+  .brd-toggle{
+    display:flex;align-items:center;gap:10px;background:none;border:none;padding:6px 0;margin:0;
+    text-align:left;cursor:pointer;color:var(--ink);min-width:0;min-height:48px;touch-action:manipulation;
+  }
+  .brd-toggle svg{flex:0 0 auto;width:18px;height:18px;stroke:var(--ink-soft);fill:none;stroke-width:2;transition:transform .15s;}
+  .brd.open .brd-toggle svg{transform:rotate(90deg);stroke:var(--accent-deep);}
+  .brd-toggle .name{display:block;font-weight:600;font-size:17px;}
+  .brd-toggle .sub{display:block;font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);margin-top:1px;}
+  .brd-toggle .sub b{font-weight:600;color:var(--accent-deep);}
+  .brd-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--radius);}
+  .brd.open{background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius);box-shadow:var(--shadow);margin:8px 0;}
+  .brd.open .brd-head{padding:10px 12px;border-bottom:1px solid var(--line);}
+
+  .chip{
+    font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+    padding:4px 8px;border-radius:var(--radius);border:1px solid var(--sl);background:var(--sw);color:var(--s);
+    white-space:nowrap;font-weight:600;
+  }
+  .chip.s-none{font-weight:400;background:transparent;}
+
+  /* Read-only count on the main screen */
+  .qty{
+    min-width:68px;height:50px;padding:0 10px;display:grid;place-items:center;border-radius:var(--radius);
+    border:1px solid var(--sl);background:var(--sw);color:var(--s);
+    font-family:var(--font-mono);font-weight:600;font-size:20px;font-variant-numeric:tabular-nums;line-height:1;
+  }
+
+  @media(max-width:600px){
+    .brd-head{grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;}
+    .brd-toggle{grid-column:1;grid-row:1;padding-bottom:0;}
+    .brd-head .head-meta{grid-column:1;grid-row:2;justify-content:flex-start;margin-left:28px;}
+    .brd-head .qty{grid-column:2;grid-row:1 / 3;}
+  }
+
+  /* Customer drop-down: each customer is a card with two lines.
+     Big tap targets (52px) for cold fingers on the factory floor. */
+  .brd-body{padding:14px;display:flex;flex-direction:column;gap:14px;}
+  .cust{
+    border:1px solid var(--line-strong);border-radius:var(--radius);background:#fff;padding:14px 16px 16px;
+    border-left:5px solid var(--sl);display:flex;flex-direction:column;gap:14px;
+  }
+  .cust.s-short{background:var(--warn-wash);}
+  .cust-top{display:flex;align-items:center;gap:12px;}
+  .cust-top .cname{flex:1 1 auto;font-weight:600;font-size:18px;min-width:0;overflow-wrap:break-word;line-height:1.25;}
+  .phone-date{display:none;}
+  .cust-top .state{display:block;font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--s);margin-top:3px;letter-spacing:.02em;}
+  .cust-top .state .needs{color:var(--ink);}
+  .cust.spare-card .cname{color:var(--amber);}
+  .cust-date{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;}
+  .cust-fields{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;}
+  .fld .lbl{display:block;font-size:11px;color:var(--ink-soft);margin-bottom:4px;font-family:var(--font-mono);letter-spacing:.04em;text-transform:uppercase;}
+  .cust input[type=date]{
+    height:52px;border:1px solid var(--line-strong);border-radius:var(--radius);
+    padding:8px 10px;background:#fff;color:var(--ink);font-family:var(--font-mono);font-size:16px;
+  }
+  .cust input[type=date]:focus{border-color:var(--accent);outline:2px solid var(--accent-wash);}
+
+  /* − count + */
+  .stepper{display:flex;align-items:stretch;}
+  .stepper button{
+    width:54px;height:52px;border:1px solid var(--line-strong);background:#fff;color:var(--ink);
+    font-size:24px;line-height:1;cursor:pointer;touch-action:manipulation;
+  }
+  .stepper button:first-child{border-radius:var(--radius) 0 0 var(--radius);}
+  .stepper button:last-child{border-radius:0 var(--radius) var(--radius) 0;}
+  .stepper button:hover:not(:disabled){background:var(--panel-2);}
+  .stepper button:active:not(:disabled){background:var(--accent-wash);}
+  .stepper button:disabled{color:var(--line-strong);cursor:not-allowed;}
+  .stepper .val{
+    min-width:62px;height:52px;padding:0 8px;display:grid;place-items:center;border-top:1px solid var(--sl);border-bottom:1px solid var(--sl);
+    background:var(--sw);color:var(--s);font-family:var(--font-mono);font-weight:600;font-size:22px;font-variant-numeric:tabular-nums;
+  }
+
+  /* Ordered? two buttons, the chosen one fills with colour */
+  .seg{display:flex;}
+  .seg button{
+    min-width:76px;height:52px;border:1px solid var(--line-strong);background:#fff;color:var(--ink-soft);
+    font-family:var(--font-display);font-weight:700;font-size:16px;cursor:pointer;touch-action:manipulation;
+  }
+  .seg button:first-child{border-radius:var(--radius) 0 0 var(--radius);}
+  .seg button:last-child{border-radius:0 var(--radius) var(--radius) 0;border-left:none;}
+  .seg button.on-yes{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .seg button.on-no{background:var(--warn);border-color:var(--warn);color:#fff;}
+  .seg.due button:not(.on-no){border-color:var(--amber-line);background:var(--amber-wash);color:var(--amber);}
+  .seg.due button[data-dlv=yes]:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .brd-toggle .sub b.due-flag{color:var(--warn);}
+
+  .x{
+    flex:0 0 auto;width:48px;height:48px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);
+    cursor:pointer;border-radius:var(--radius);font-size:22px;line-height:1;touch-action:manipulation;align-self:flex-start;
+  }
+  .x:hover{color:var(--warn);border-color:var(--warn);background:var(--warn-wash);}
+  .btn.sm{padding:10px 16px;font-size:15px;min-height:52px;}
+  .btn.amber{background:var(--amber-wash);color:var(--amber);border-color:var(--amber-line);}
+  .btn.amber:hover{border-color:var(--amber);}
+
+  /* Add customer form */
+  .add-form{display:grid;grid-template-columns:minmax(0,1fr) 130px auto;gap:10px;align-items:end;padding-top:14px;border-top:1px solid var(--line);}
+  .add-form .field{margin:0;}
+  .add-form .field input{height:52px;}
+
+  @media(max-width:600px){
+    .brd-body{padding:10px;gap:12px;}
+    .cust{padding:12px;gap:12px;}
+    .cust-top{gap:8px;}
+    .cust-top .cname{font-size:17px;}
+    .cust-date{display:none;}
+    .phone-date{display:block;}
+    .phone-date input{width:100%;padding:8px 4px;font-size:14px;letter-spacing:-.02em;}
+    /* second line: two even columns so nothing is cramped */
+    .cust-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .cust-fields .fld,.cust-fields .btn{min-width:0;}
+    .cust-fields .btn{grid-column:1 / -1;}
+    .stepper{width:100%;}
+    .stepper button{width:48px;flex:0 0 48px;}
+    .stepper .val{flex:1;min-width:0;}
+    .seg{width:100%;}
+    .seg button{flex:1;min-width:0;}
+    .add-form{grid-template-columns:1fr 1fr;}
+    .add-form .f-name{grid-column:1 / -1;}
+  }
+  /* Side slip */
+  .li .who{display:block;font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);margin-top:1px;}
+  .li .amt.bad{color:var(--warn);font-weight:600;}
+  .li .amt.spare{color:var(--amber);font-weight:600;}
+  .slip-sub{font-size:11px;font-family:var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent-deep);margin:20px 0 4px;padding-top:14px;border-top:1px solid var(--line);}
+  .total .amt.bad{color:var(--warn);}
+
+  /* Pop-up box */
+  dialog{border:1px solid var(--line-strong);padding:0;border-radius:var(--radius);box-shadow:var(--shadow);background:var(--panel);color:var(--ink);width:calc(100% - 32px);max-width:420px;}
+  dialog::backdrop{background:rgba(28,36,34,.45);}
+  dialog p{margin:0;font-size:15px;}
+  .head-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
+  .edit-btn{min-height:44px;padding:8px 14px;font-size:14px;}
+  .add-board{margin-top:16px;min-height:52px;width:100%;border-style:dashed;font-size:15px;}
+  [hidden]{display:none !important;}
+  .head-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .signout{min-height:40px;padding:8px 14px;font-size:13px;}
+  .login{max-width:460px;}
+  .login .field input{height:52px;font-size:16px;}
+  .login-btn{width:100%;min-height:52px;font-size:16px;margin-top:6px;}
+  .login-err{background:var(--warn-wash);color:var(--warn);border:1px solid #e2b8a8;border-radius:var(--radius);padding:10px 12px;font-size:14px;margin:6px 0 4px;}
+  /* Until someone signs in, only the sign-in card shows */
+  body.gate main > :not(.login), body.gate .slip-wrap, body.gate .mbar{display:none !important;}
+  /* Sync status */
+  .sync{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--ink-soft);border:1px solid var(--line-strong);border-radius:var(--radius);padding:6px 10px;background:var(--panel);}
+  .sync i{width:8px;height:8px;border-radius:50%;background:var(--line-strong);flex:0 0 auto;}
+  .sync.on{color:var(--accent-deep);border-color:#b9d6d1;background:var(--accent-wash);}
+  .sync.on i{background:var(--accent);}
+  .sync.bad{color:var(--warn);border-color:#e2b8a8;background:var(--warn-wash);}
+  .sync.bad i{background:var(--warn);}
+  /* View-only visitors see everything but can't change it */
+  body.readonly .stepper button,body.readonly .seg button,body.readonly .x,body.readonly .add-form,
+  body.readonly .add-board,body.readonly .can-edit,body.readonly [data-take]{display:none !important;}
+  .dlg-foot{display:flex;justify-content:flex-end;gap:9px;margin-top:18px;}
+
+  @media print{
+    body{background:#fff;color:#000;}
+    .mbar,.toast,.x,.actions,.stepper button,.add-form{display:none !important;}
+    .grid{grid-template-columns:1fr;}
+    .slip,.brd.open{box-shadow:none;}
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="brandline">PaulsGameDevHub</div>
+        <h1>Board Tracker</h1>
+        <p class="tagline">Boards you've got, which customers they're for, and what to order.</p>
+      </div>
+      <div class="head-right">
+        <div class="sync" id="sync" role="status" aria-live="polite"><i></i><span>Loading…</span></div>
+        <button class="btn ghost signout" id="signout" hidden>Sign out</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <main>
+        <div class="card login" id="login" hidden>
+          <h2>Sign in</h2>
+          <p class="hint" style="margin:0 0 14px">Use the team login. You only need to do this once on each phone or PC.</p>
+          <form id="login-form" autocomplete="on">
+            <div class="field"><label for="li-email">Email</label><input id="li-email" type="email" autocomplete="username" inputmode="email" required></div>
+            <div class="field"><label for="li-pass">Password</label><input id="li-pass" type="password" autocomplete="current-password" required></div>
+            <p class="login-err" id="login-err" hidden></p>
+            <button class="btn primary login-btn" type="submit" id="li-go">Sign in</button>
+          </form>
+        </div>
+        <div class="card login" id="noload" hidden>
+          <h2>Can't reach the shared list</h2>
+          <p style="margin:0 0 14px">Check your signal or Wi-Fi, then try again.</p>
+          <button class="btn primary login-btn" id="retry">Try again</button>
+        </div>
+        <h2 class="section-title">Boards <span class="count" id="n-boards"></span></h2>
+        <div class="key" aria-label="Colour key">
+          <span class="s-short"><i></i>Short, order more</span>
+          <span class="s-ok"><i></i>Covered</span>
+          <span class="s-spare"><i></i>Spare left over</span>
+        </div>
+        <p class="hint" style="margin:0 0 6px">The number is how many boards you've got. Tap a board to see its customers and change counts.</p>
+        <div id="boards"></div>
+        <button class="btn ghost add-board" id="add-board">+ Add board colour</button>
+      </main>
+
+      <aside class="slip-wrap" id="slip">
+        <div class="slip">
+          <div class="slip-head"><h2>To order</h2><span class="ref" id="slip-date"></span></div>
+          <div class="slip-body">
+            <div id="shorts"></div>
+            <div class="total"><span class="lbl">Boards to order</span><span class="amt" id="short-total">0</span></div>
+            <div class="actions">
+              <button class="btn primary" id="copy">Copy order list</button>
+            </div>
+            <div class="slip-sub">Next deliveries</div>
+            <div id="deliveries"></div>
+            <div class="slip-sub">Spare boards</div>
+            <div id="spares"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div class="mbar"><div class="m-value"><small>Boards to order</small><span id="m-short">0</span></div><button id="m-show">See list</button></div>
+  <div class="toast" id="toast"></div>
+  <dialog id="dlg">
+    <div class="slip-head"><h2 id="dlg-title"></h2></div>
+    <form class="slip-body" id="dlg-form" method="dialog">
+      <div id="dlg-body"></div>
+      <div class="dlg-foot">
+        <button type="button" class="btn ghost" id="dlg-no">Cancel</button>
+        <button type="submit" class="btn primary" id="dlg-yes">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+<script>
+/* ==========================================================
+   YOUR BOARDS: the starting list of board colours.
+   Keep each name in quotes, with a comma after it.
+   (Only used the very first time the shared list is set up.
+   After that, add or rename colours in the app.)
+   ========================================================== */
+const DEFAULT_BOARDS = [
+  'White',
+  'Cashmere',
+  'Light Grey',
+  'Dust Grey',
+  'Graphite',
+  'Indigo Blue',
+  'Sage Green',
+  'Natural Oak',
+];
+
+/* Firebase project (these settings are meant to be public; the team login
+   and the database rules are what keep the list private) */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBVH9DjzohJfKCLYg7UwzuvUZvJllO-sno",
+  authDomain: "board-tracker-fdaed.firebaseapp.com",
+  projectId: "board-tracker-fdaed",
+  storageBucket: "board-tracker-fdaed.firebasestorage.app",
+  messagingSenderId: "259275023295",
+  appId: "1:259275023295:web:9aba7943b7340c393af70a"
+};
+const FIREBASE_VERSION = '10.12.2';
+
+const LOCAL_KEY = 'boardTracker.v4';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => Math.max(0, parseInt(v, 10) || 0);
+const uid = () => Math.random().toString(36).slice(2, 10);
+const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+const chevron = '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+function todayISO(){ const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+const fmtDate = s => new Date(s + 'T12:00:00').toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'});
+
+/* ---------- The data ----------
+   boards = [{ id, name, order, spare, customers: [{id, name, need, have, ordered, onorder, date, notDelivered}] }]
+   need    = boards the customer needs (fixed when added)
+   have    = boards you've got for them
+   onorder = boards ordered for them that haven't arrived yet
+   Shared mode: each board is one document "boards/<id>" in the artifact's shared store,
+   so every phone and PC sees changes live. Local mode (opened from a file or GitHub Pages
+   without sharing): saved in this browser only. */
+let boards = [];
+let open = null;          // id of the board whose drop-down is open
+let db = null;            // shared store, or null in local mode
+let readOnly = false;
+let firstSnap = true;
+
+const byId = id => boards.find(B => B.id === id);
+const sorted = () => boards.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name));
+const tidyCust = c => ({id: c.id || uid(), name: c.name || 'Customer', need: num(c.need), have: num(c.have),
+  ordered: !!c.ordered, onorder: num(c.onorder), date: c.date || '', ...(c.notDelivered ? {notDelivered: c.notDelivered} : {})});
+const tidyBoard = (B, i) => ({id: B.id || uid(), name: String(B.name || 'Board'), order: Number.isFinite(B.order) ? B.order : i,
+  spare: num(B.spare), customers: (B.customers || []).map(tidyCust)});
+
+/* What this browser had saved before (older versions included), or the starting list */
+function loadLocal(){
+  try{ const d = JSON.parse(localStorage.getItem(LOCAL_KEY)); if(Array.isArray(d) && d.length) return d.map(tidyBoard); }catch(e){}
+  try{
+    const v3 = JSON.parse(localStorage.getItem('boardTracker.v3'));
+    if(v3 && v3.boards){
+      const names = Array.isArray(v3.list) && v3.list.length ? v3.list : Object.keys(v3.boards);
+      return names.map((name, i) => {
+        const B = v3.boards[name] || {};
+        const customers = (B.customers || []).map(c => ({...c,
+          onorder: c.onorder ?? (c.ordered ? Math.max(0, num(c.need) - num(c.have)) : 0)}));
+        return tidyBoard({id: uid(), name, order: i, spare: B.spare, customers}, i);
+      });
+    }
+  }catch(e){}
+  return DEFAULT_BOARDS.map((name, i) => tidyBoard({name, order: i}, i));
+}
+function saveLocal(){ try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(boards)); }catch(e){ toast('Could not save on this device'); } }
+
+/* ---------- Saving a change ----------
+   Shared mode writes one board at a time, newest state last, so quick taps don't clash. */
+const writing = new Map();   // board id -> {dirty}
+function saveBoard(id){
+  if(!db){ saveLocal(); return; }
+  const st = writing.get(id);
+  if(st){ st.dirty = true; return; }
+  const me = {dirty: true}; writing.set(id, me);
+  setSync('saving');
+  (async () => {
+    try{
+      while(me.dirty){
+        me.dirty = false;
+        const B = byId(id), ref = db.doc('boards/' + id);
+        if(B){ const {id: _, ...body} = tidyBoard(B, 0); body.order = B.order; await ref.set(body); }
+        else await ref.delete();
+      }
+      writing.delete(id);
+      if(!writing.size) setSync('live');
+    }catch(e){
+      writing.delete(id);
+      if(e && e.code === 'invalid_argument'){ readOnly = true; document.body.classList.add('readonly'); setSync('readonly'); toast("You can look but not change this list. Ask Paul for edit access."); }
+      else { setSync('error'); toast("Couldn't save that change. Check your signal and try again."); }
+    }
+  })();
+}
+
+/* ---------- Sync status (top right) ---------- */
+function setSync(state){
+  const el = $('sync'); if(!el) return;
+  const map = {
+    connecting: ['', 'Connecting…'],
+    live:       ['on', 'Live: changes show on every device'],
+    saving:     ['on', 'Saving…'],
+    local:      ['', 'This device only'],
+    readonly:   ['', 'View only'],
+    offline:    ['bad', "Can't reach the shared list"],
+    error:      ['bad', 'Not saved, try again'],
+  };
+  const [cls, text] = map[state] || map.local;
+  el.className = 'sync ' + cls; el.querySelector('span').textContent = text;
+}
+
+/* ---------- The sums ---------- */
+const stillNeed = c => Math.max(0, num(c.need) - num(c.have));               // not got yet
+const gap = c => Math.max(0, stillNeed(c) - (c.ordered ? num(c.onorder) : 0)); // not got and not on order
+/* An order is due once its expected delivery date arrives */
+const isDue = c => c.ordered && num(c.onorder) > 0 && c.date && c.date <= todayISO() && stillNeed(c) > 0;
+
+/* Work out each board: spare boards cover customers' gaps in list order. */
+function calc(B){
+  let spareLeft = num(B.spare);
+  const per = {};
+  let toOrder = 0;
+  B.customers.forEach(c => {
+    const g = gap(c), fromSpare = Math.min(g, spareLeft);
+    spareLeft -= fromSpare;
+    per[c.id] = {fromSpare, short: g - fromSpare};
+    toOrder += g - fromSpare;
+  });
+  const have = num(B.spare) + B.customers.reduce((s, c) => s + num(c.have), 0);
+  const need = B.customers.reduce((s, c) => s + num(c.need), 0);
+  const dates = B.customers.filter(c => c.ordered && c.date && stillNeed(c)).map(c => c.date).sort();
+  const due = B.customers.filter(isDue).length;
+  let cls, text;
+  if(toOrder) { cls = 's-short'; text = toOrder + ' short'; }
+  else if(due) { cls = 's-spare'; text = 'Delivery due'; }
+  else if(spareLeft) { cls = 's-spare'; text = spareLeft + ' spare'; }
+  else if(B.customers.length) { cls = 's-ok'; text = 'Covered'; }
+  else { cls = 's-none'; text = 'None'; }
+  return {per, toOrder, spareLeft, have, need, next: dates[0] || '', due, cls, text};
+}
+
+function custState(c, p){
+  const left = stillNeed(c);
+  if(!left) return {cls:'s-ok', text:'All got'};
+  if(isDue(c)){
+    const n = Math.min(num(c.onorder), left), late = c.date < todayISO();
+    if(c.notDelivered === c.date) return {cls:'s-short', text:`${n} not delivered yet, chase it or change the date`};
+    return {cls: late ? 's-short' : 's-spare', text:`${n} due ${late ? 'since ' + fmtDate(c.date) : 'today'}: delivered?`};
+  }
+  if(p.short) return {cls:'s-short', text:`${p.short} short, needs ordering`};
+  const bits = [];
+  if(c.ordered && num(c.onorder)) bits.push(`${Math.min(num(c.onorder), left)} on order`);
+  if(p.fromSpare) bits.push(`${p.fromSpare} from spare`);
+  return {cls: p.fromSpare ? 's-spare' : 's-ok', text: bits.join(' · ')};
+}
+
+/* ---------- Drawing ---------- */
+function drawBoards(){
+  // Keep anything half-typed (and where the cursor was) when the list redraws,
+  // e.g. when someone else's change arrives while you're typing a customer name.
+  const keep = {};
+  $('boards').querySelectorAll('.add-form input').forEach(el => { if(el.value) keep[el.id] = el.value; });
+  const focusId = document.activeElement && $('boards').contains(document.activeElement) ? document.activeElement.id : '';
+
+  const list = sorted();
+  $('boards').innerHTML = list.length ? list.map(B => {
+    const k = calc(B), isOpen = open === B.id;
+    const sub = B.customers.length
+      ? `Needed ${k.need} · ${plural(B.customers.length, 'customer')}${k.due ? ` · <b class="due-flag">delivery due, check it</b>` : k.next ? ` · next delivery <b>${fmtDate(k.next)}</b>` : ''}`
+      : (num(B.spare) ? 'Spare only' : 'No customers');
+    return `<div class="brd ${isOpen ? 'open' : ''}" id="brd-${B.id}">
+      <div class="brd-head">
+        <button class="brd-toggle" data-toggle="${B.id}" aria-expanded="${isOpen}">
+          ${chevron}<span><span class="name">${esc(B.name)}</span><span class="sub">${sub}</span></span>
+        </button>
+        <div class="head-meta">
+          <span class="chip ${k.cls}">${k.text}</span>
+          ${isOpen ? `<button class="btn ghost edit-btn can-edit" data-edit="${B.id}" aria-label="Edit ${esc(B.name)}">Edit colour</button>` : ''}
+        </div>
+        <div class="qty ${k.cls}" aria-label="${k.have} ${esc(B.name)} boards">${k.have}</div>
+      </div>
+      ${isOpen ? drawBody(B, k) : ''}
+    </div>`;
+  }).join('') : '<div class="empty">No board colours yet. Add your first one below.</div>';
+
+  Object.entries(keep).forEach(([id, v]) => { const el = $(id); if(el) el.value = v; });
+  if(focusId && $(focusId)) $(focusId).focus({preventScroll: true});
+  updateSummary();
+}
+
+function stepper(bid, id, field, val, cls, minusOff, plusOff){
+  return `<div class="stepper ${cls}">
+    <button data-step="-1" data-f="${field}" data-b="${bid}" data-c="${id}" ${minusOff ? 'disabled' : ''} aria-label="One less">−</button>
+    <span class="val">${val}</span>
+    <button data-step="1" data-f="${field}" data-b="${bid}" data-c="${id}" ${plusOff ? 'disabled' : ''} aria-label="One more">+</button>
+  </div>`;
+}
+
+function drawBody(B, k){
+  const bid = B.id, spare = num(B.spare);
+  const spareCard = `<div class="cust spare-card ${spare ? 's-spare' : 's-none'}">
+      <div class="cust-top"><div class="cname">Spare<span class="state" style="color:var(--ink-soft);font-weight:400">Boards not for a customer yet${k.spareLeft !== spare ? ` · ${spare - k.spareLeft} earmarked below` : ''}</span></div></div>
+      <div class="cust-fields">
+        <div class="fld"><span class="lbl">Got</span>${stepper(bid, 'spare', 'spare', spare, spare ? 's-spare' : 's-none', spare <= 0, false)}</div>
+      </div>
+    </div>`;
+
+  const cards = B.customers.map(c => {
+    const p = k.per[c.id], st = custState(c, p), left = stillNeed(c);
+    const have = num(c.have), need = num(c.need), onorder = num(c.onorder);
+    return `<div class="cust ${st.cls}">
+      <div class="cust-top">
+        <div class="cname">${esc(c.name)}<span class="state"><span class="needs">Needs ${need}</span> · ${st.text}</span></div>
+        ${c.ordered ? `<div class="cust-date"><label class="lbl fld-lbl" for="cd-${c.id}" style="font-size:11px;color:var(--ink-soft);margin-bottom:4px;font-family:var(--font-mono);letter-spacing:.04em;text-transform:uppercase">Expected delivery</label>
+          <input id="cd-${c.id}" data-date="${c.id}" data-b="${bid}" type="date" value="${esc(c.date)}"></div>` : ''}
+        <button class="x" data-del="${c.id}" data-b="${bid}" title="Remove ${esc(c.name)}" aria-label="Remove ${esc(c.name)}">×</button>
+      </div>
+      <div class="cust-fields">
+        <div class="fld"><span class="lbl">Got</span>${stepper(bid, c.id, 'have', have, left ? 's-short' : 's-ok', have <= 0, have >= need)}</div>
+        ${isDue(c) ? `<div class="fld"><span class="lbl">Delivered?</span>
+          <div class="seg due" role="group" aria-label="Delivered?">
+            <button data-dlv="yes" data-b="${bid}" data-c="${c.id}">Yes</button>
+            <button data-dlv="no" data-b="${bid}" data-c="${c.id}" class="${c.notDelivered === c.date ? 'on-no' : ''}" aria-pressed="${c.notDelivered === c.date}">No</button>
+          </div></div>` : `<div class="fld"><span class="lbl">Ordered?</span>
+          <div class="seg" role="group" aria-label="Ordered?">
+            <button data-ord="yes" data-b="${bid}" data-c="${c.id}" class="${c.ordered ? 'on-yes' : ''}" aria-pressed="${!!c.ordered}">Yes</button>
+            <button data-ord="no" data-b="${bid}" data-c="${c.id}" class="${c.ordered ? '' : 'on-no'}" aria-pressed="${!c.ordered}">No</button>
+          </div></div>`}
+        ${c.ordered ? `<div class="fld"><span class="lbl">How many ordered</span>${stepper(bid, c.id, 'onorder', onorder, 's-ok', onorder <= 0, onorder >= left)}</div>
+        <div class="fld phone-date"><label class="lbl" for="cdp-${c.id}">Expected delivery</label>
+          <input id="cdp-${c.id}" data-date="${c.id}" data-b="${bid}" type="date" value="${esc(c.date)}"></div>` : ''}
+        ${p.fromSpare ? `<button class="btn amber sm" data-take="${c.id}" data-b="${bid}">Take ${p.fromSpare} from spare</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="brd-body">
+    ${spareCard}${cards}
+    <div class="add-form">
+      <div class="field f-name"><label for="an-${bid}">New customer</label><input id="an-${bid}" type="text" placeholder="e.g. Coyne" autocomplete="off"></div>
+      <div class="field"><label for="aq-${bid}">Boards needed</label><input id="aq-${bid}" type="number" min="1" inputmode="numeric" placeholder="0"></div>
+      <button class="btn primary sm" data-add="${bid}">Add customer</button>
+    </div>
+    <p class="hint" style="margin:0">Boards needed is fixed once added. When ordered boards arrive, press + on Got and the ordered count goes down by itself.</p>
+  </div>`;
+}
+
+function updateSummary(){
+  const all = sorted().map(B => ({B, k: calc(B)}));
+  $('n-boards').textContent = plural(all.reduce((s, x) => s + x.k.have, 0), 'board') + ' in stock';
+
+  const shorts = all.filter(x => x.k.toOrder);
+  $('shorts').innerHTML = shorts.length ? shorts.map(({B, k}) => {
+    const who = B.customers.filter(c => k.per[c.id].short).map(c => c.name + ' ' + k.per[c.id].short).join(', ');
+    return `<div class="li"><span>${esc(B.name)}<span class="who">${esc(who)}</span></span><span class="amt bad">${k.toOrder}</span></div>`;
+  }).join('') : `<div class="empty">${boards.some(B => B.customers.length) ? 'Nothing to order. Every customer is covered.' : 'Add customers to a board to see what to order.'}</div>`;
+  const tot = shorts.reduce((s, x) => s + x.k.toOrder, 0);
+  $('short-total').textContent = tot;
+  $('short-total').classList.toggle('bad', tot > 0);
+  $('m-short').textContent = tot;
+
+  const dated = [];
+  all.forEach(({B}) => B.customers.forEach(c => {
+    if(c.ordered && c.date && num(c.onorder) && stillNeed(c)) dated.push({B, c});
+  }));
+  dated.sort((x, y) => x.c.date.localeCompare(y.c.date));
+  $('deliveries').innerHTML = dated.length ? dated.slice(0, 8).map(({B, c}) => `
+    <div class="li"><span>${esc(B.name)} × ${Math.min(num(c.onorder), stillNeed(c))}<span class="who">${esc(c.name)}</span></span><span class="amt ${isDue(c) ? 'bad' : ''}">${isDue(c) ? (c.date < todayISO() ? 'Late' : 'Today') : fmtDate(c.date)}</span></div>`).join('')
+    : '<div class="hint" style="padding:6px 0">No deliveries expected. Mark a customer as ordered and add a date.</div>';
+
+  const spares = all.filter(x => num(x.B.spare));
+  $('spares').innerHTML = spares.length ? spares.map(({B, k}) => {
+    const s = num(B.spare), used = s - k.spareLeft;
+    return `<div class="li"><span>${esc(B.name)}${used ? `<span class="who">${used} earmarked for customers</span>` : ''}</span><span class="amt spare">${s}</span></div>`;
+  }).join('') : '<div class="hint" style="padding:6px 0">No spare boards.</div>';
+}
+
+/* ---------- Pop-up box ---------- */
+const dlg = $('dlg');
+let dlgOk = null;
+/* title, inside HTML, OK label, what OK does (return false to keep it open) */
+function openBox(title, body, okLabel, onOk, danger){
+  $('dlg-title').textContent = title;
+  $('dlg-body').innerHTML = body;
+  const ok = $('dlg-yes'); ok.textContent = okLabel; ok.className = 'btn ' + (danger ? 'danger' : 'primary');
+  dlgOk = onOk;
+  dlg.showModal();
+  const first = dlg.querySelector('#dlg-body input'); if(first){ first.focus(); first.select(); }
+}
+$('dlg-form').addEventListener('submit', e => {
+  e.preventDefault();
+  if(dlgOk && dlgOk() === false) return;
+  dlg.close();
+});
+$('dlg-no').onclick = () => dlg.close();
+
+/* ---------- Board colours ---------- */
+function nameProblem(name, exceptId){
+  if(!name) return 'Type a colour name';
+  if(boards.some(B => B.name.toLowerCase() === name.toLowerCase() && B.id !== exceptId)) return name + ' is already on the list';
+  return '';
+}
+function editBoard(bid){
+  const B = byId(bid); if(!B) return;
+  const k = calc(B), empty = !B.customers.length && !num(B.spare);
+  openBox('Edit board colour', `
+    <div class="field"><label for="ed-name">Colour name</label><input id="ed-name" type="text" value="${esc(B.name)}" autocomplete="off"></div>
+    <p class="hint" style="margin:6px 0 0">Customers and counts stay with the board when you rename it.</p>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
+      <button type="button" class="btn danger sm" id="ed-remove" ${empty ? '' : 'disabled'}>Remove this colour</button>
+      ${empty ? '' : `<p class="hint" style="margin:6px 0 0">To remove it, first clear its ${plural(k.have, 'board')} and ${plural(B.customers.length, 'customer')}.</p>`}
+    </div>`,
+    'Save', () => {
+      const cur = byId(bid); if(!cur) return;
+      const name = $('ed-name').value.trim(), bad = nameProblem(name, bid);
+      if(bad){ toast(bad); return false; }
+      if(name !== cur.name){ cur.name = name; saveBoard(bid); drawBoards(); toast(`Renamed to ${name}`); }
+    });
+  const rm = $('ed-remove');
+  if(rm && empty) rm.onclick = () => {
+    const name = B.name;
+    boards = boards.filter(x => x.id !== bid); if(open === bid) open = null;
+    saveBoard(bid); drawBoards(); dlg.close(); toast(name + ' removed');
+  };
+}
+$('add-board').onclick = () => {
+  if(readOnly) return;
+  openBox('Add board colour', `
+    <div class="field"><label for="nb-name">Colour name</label><input id="nb-name" type="text" placeholder="e.g. Egger W1100 Alpine White" autocomplete="off"></div>
+    <p class="hint" style="margin:6px 0 0">It's added to the bottom of the list.</p>`,
+    'Add colour', () => {
+      const name = $('nb-name').value.trim(), bad = nameProblem(name);
+      if(bad){ toast(bad); return false; }
+      const order = boards.reduce((m, B) => Math.max(m, B.order ?? 0), -1) + 1;
+      const B = {id: uid(), name, order, spare: 0, customers: []};
+      boards.push(B); open = B.id;
+      saveBoard(B.id); drawBoards(); toast(name + ' added');
+      $('brd-' + B.id)?.scrollIntoView({block:'nearest', behavior:'smooth'});
+    });
+};
+
+/* ---------- Clicks inside the board list ---------- */
+$('boards').addEventListener('click', e => {
+  const t = e.target.closest('button'); if(!t || t.disabled) return;
+
+  if(t.dataset.toggle !== undefined){
+    open = open === t.dataset.toggle ? null : t.dataset.toggle;
+    drawBoards();
+    if(open) $('brd-' + open)?.scrollIntoView({block:'nearest', behavior:'smooth'});
+    return;
+  }
+  if(readOnly){ toast("You can look but not change this list."); return; }
+  if(t.dataset.edit !== undefined){ editBoard(t.dataset.edit); return; }
+
+  const bid = t.dataset.b || t.dataset.add, B = byId(bid); if(!B) return;
+  const cust = id => B.customers.find(x => x.id === id);
+  const done = msg => { saveBoard(bid); drawBoards(); if(msg) toast(msg); };
+
+  if(t.dataset.step){
+    const d = Number(t.dataset.step), f = t.dataset.f;
+    if(f === 'spare') B.spare = Math.max(0, num(B.spare) + d);
+    else {
+      const c = cust(t.dataset.c); if(!c) return;
+      if(f === 'have'){
+        c.have = Math.min(num(c.need), Math.max(0, num(c.have) + d));
+        // A board arriving off an order: count it off the order
+        if(d > 0 && c.ordered && num(c.onorder) > 0) c.onorder = num(c.onorder) - 1;
+      } else if(f === 'onorder'){
+        c.onorder = Math.min(stillNeed(c), Math.max(0, num(c.onorder) + d));
+      }
+      if(c.onorder > stillNeed(c)) c.onorder = stillNeed(c);
+    }
+    return done();
+  }
+  if(t.dataset.ord){
+    const c = cust(t.dataset.c); if(!c) return;
+    const yes = t.dataset.ord === 'yes';
+    if(yes && !c.ordered){ const sh = calc(B).per[c.id].short; c.ordered = true; c.onorder = Math.min(stillNeed(c), sh || 1); }
+    if(!yes){ c.ordered = false; c.onorder = 0; }
+    return done();
+  }
+  if(t.dataset.dlv){
+    const c = cust(t.dataset.c); if(!c) return;
+    if(t.dataset.dlv === 'yes'){
+      const n = Math.min(num(c.onorder), stillNeed(c));
+      c.have = num(c.have) + n; c.onorder = 0; c.ordered = false; c.date = ''; delete c.notDelivered;
+      return done(`${n} ${B.name} delivered for ${c.name}, added to Got`);
+    }
+    c.notDelivered = c.date;
+    return done('Marked not delivered. Change the expected date when you know it.');
+  }
+  if(t.dataset.take){
+    const c = cust(t.dataset.take); if(!c) return;
+    const n = calc(B).per[c.id].fromSpare;
+    B.spare = num(B.spare) - n; c.have = num(c.have) + n;
+    return done(`Moved ${n} from spare to ${c.name}`);
+  }
+  if(t.dataset.add !== undefined){
+    const nameEl = $('an-' + bid), qtyEl = $('aq-' + bid);
+    const name = nameEl.value.trim(), need = num(qtyEl.value);
+    if(!name){ toast('Type the customer name'); nameEl.focus(); return; }
+    if(!need){ toast('Enter how many boards they need'); qtyEl.focus(); return; }
+    B.customers.push({id: uid(), name, need, have:0, ordered:false, onorder:0, date:''});
+    nameEl.value = ''; qtyEl.value = '';
+    done(`${name} added: needs ${need} ${B.name}`);
+    $('an-' + bid)?.focus();
+    return;
+  }
+  if(t.dataset.del){
+    const c = cust(t.dataset.del); if(!c) return;
+    openBox('Remove customer?', `<p>Remove <b>${esc(c.name)}</b> from ${esc(B.name)}?` +
+      (num(c.have) ? ` Their ${plural(num(c.have), 'board')} will move to Spare.` : '') + '</p>',
+      'Remove', () => {
+        const cur = byId(bid); if(!cur) return;
+        const cc = cur.customers.find(x => x.id === c.id); if(!cc) return;
+        cur.spare = num(cur.spare) + num(cc.have);
+        cur.customers = cur.customers.filter(x => x.id !== c.id);
+        saveBoard(bid); drawBoards(); toast(c.name + ' removed');
+      }, true);
+  }
+});
+
+/* Delivery dates */
+$('boards').addEventListener('change', e => {
+  const t = e.target; if(!t.dataset.date || readOnly) return;
+  const B = byId(t.dataset.b), c = B && B.customers.find(x => x.id === t.dataset.date); if(!c) return;
+  c.date = t.value; delete c.notDelivered; saveBoard(B.id); drawBoards();
+});
+/* Enter in the add form adds the customer */
+$('boards').addEventListener('keydown', e => {
+  if(e.key !== 'Enter') return;
+  const m = (e.target.id || '').match(/^a([nq])-(.+)$/); if(!m) return;
+  e.preventDefault();
+  if(m[1] === 'n') $('aq-' + m[2]).focus();
+  else document.querySelector(`[data-add="${m[2]}"]`).click();
+});
+
+$('copy').onclick = () => {
+  const lines = sorted().map(B => ({B, n: calc(B).toOrder})).filter(x => x.n).map(x => `${x.B.name} x ${x.n}`);
+  if(!lines.length){ toast('Nothing to order'); return; }
+  copyText(`Boards to order (${new Date().toLocaleDateString('en-GB')})\n` + lines.join('\n'));
+};
+$('m-show').onclick = () => $('slip').scrollIntoView({behavior:'smooth'});
+
+function copyText(text){
+  const ok = () => toast('Order list copied. Paste it into a text or email.');
+  const fallback = () => {
+    const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); ok(); }catch(e){ toast('Could not copy'); }
+    ta.remove();
+  };
+  if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(ok, fallback);
+  else fallback();
+}
+
+function toast(msg){
+  const el = $('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+/* ---------- Starting up ---------- */
+function startLocal(){
+  db = null; boards = loadLocal(); setSync('local'); drawBoards();
+}
+
+/* First time the shared list is used: fill it from this device (or the starting list).
+   A short lease stops two phones doing it at the same moment. */
+async function seedShared(){
+  try{
+    const meta = db.doc('meta/setup');
+    const lease = await meta.acquire({holder: uid(), ttlMs: 20000});
+    if(!lease.acquired) return;
+    const m = await meta.get();
+    if(m.exists && m.data().seeded) return;
+    const start = loadLocal();
+    for(const B of start){ const {id, ...body} = B; await db.doc('boards/' + id).set(body); }
+    await meta.set({seeded: true, at: new Date().toISOString()});
+  }catch(e){
+    if(e && e.code === 'invalid_argument'){ readOnly = true; document.body.classList.add('readonly'); setSync('readonly'); }
+  }
+}
+
+async function startShared(){
+  setSync('connecting');
+  $('boards').innerHTML = '<div class="empty">Loading the shared board list…</div>';
+  const slow = setTimeout(() => {
+    setSync('offline');
+    if(firstSnap) $('boards').innerHTML = '<div class="empty">Can\'t reach the shared list yet. Check your signal; it will load by itself.</div>';
+  }, 10000);
+
+
+  db.collection('boards').onSnapshot(snap => {
+    if(!snap.metadata.fromCache) clearTimeout(slow);
+    if(snap.empty && !snap.metadata.fromCache && firstSnap){ firstSnap = false; seedShared(); return; }
+    if(snap.empty && snap.metadata.fromCache) return;
+    firstSnap = false;
+    const incoming = snap.docs.filter(d => d.exists).map((d, i) => tidyBoard({...d.data(), id: d.id}, i));
+    // Boards this device is still saving keep their local version so taps don't flicker back
+    const mine = boards.filter(B => writing.has(B.id));
+    boards = incoming.filter(B => !writing.has(B.id)).concat(mine.filter(B => !incoming.some(x => x.id === B.id) || writing.has(B.id)));
+    if(open && !byId(open)) open = null;
+    if(!writing.size && !readOnly) setSync('live');
+    if(readOnly) setSync('readonly');
+    // Don't redraw under an open pop-up; it redraws when the pop-up closes
+    if(dlg.open) pendingDraw = true; else drawBoards();
+  }, err => {
+    clearTimeout(slow);
+    setSync('offline');
+    toast("Lost the connection to the shared list. Reopen the page to try again.");
+  });
+}
+let pendingDraw = false;
+dlg.addEventListener('close', () => { if(pendingDraw){ pendingDraw = false; drawBoards(); } });
+
+$('slip-date').textContent = new Date().toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).toUpperCase();
+
+/* ---------- Firebase ---------- */
+async function loadFirebase(){
+  if(window.__fbMock) return window.__fbMock();   // used only for testing
+  const base = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/`;
+  const [appM, authM, fsM] = await Promise.all([
+    import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]);
+  return {appM, authM, fsM};
+}
+
+/* Wrap Firestore so the rest of the app can talk to it simply */
+function makeStore(fsM, fdb){
+  const wrap = d => ({id: d.id, exists: d.exists(), data: () => d.data(), metadata: d.metadata});
+  const errCode = e => (e && e.code === 'permission-denied') ? 'invalid_argument' : 'unavailable';
+  return {
+    doc(path){
+      const ref = fsM.doc(fdb, path);
+      return {
+        id: ref.id,
+        get: async () => wrap(await fsM.getDoc(ref)),
+        set: body => fsM.setDoc(ref, body).catch(e => { throw {code: errCode(e), message: e.message}; }),
+        delete: () => fsM.deleteDoc(ref).catch(e => { throw {code: errCode(e), message: e.message}; }),
+        acquire: async () => ({acquired: true}),
+      };
+    },
+    collection(path){
+      return {
+        onSnapshot: (next, err) => fsM.onSnapshot(fsM.collection(fdb, path),
+          snap => next({docs: snap.docs.map(wrap), empty: snap.empty, size: snap.size, metadata: snap.metadata}),
+          e => err && err({code: errCode(e), message: e.message})),
+      };
+    },
+  };
+}
+
+function gate(which){
+  document.body.classList.toggle('gate', !!which);
+  $('login').hidden = which !== 'login';
+  $('noload').hidden = which !== 'noload';
+  $('signout').hidden = !!which;
+}
+
+async function startFirebase(){
+  setSync('connecting');
+  let fb;
+  try{ fb = await loadFirebase(); }
+  catch(e){ setSync('offline'); gate('noload'); return; }
+  const {appM, authM, fsM} = fb;
+  const app = appM.initializeApp(FIREBASE_CONFIG);
+  const auth = authM.getAuth(app);
+  let fdb;
+  // Keep a copy on the device so it still opens with a poor signal
+  try{ fdb = fsM.initializeFirestore(app, {localCache: fsM.persistentLocalCache({tabManager: fsM.persistentMultipleTabManager()})}); }
+  catch(e){ fdb = fsM.getFirestore(app); }
+
+  let started = false;
+  authM.onAuthStateChanged(auth, user => {
+    if(user){
+      gate(null);
+      if(!started){ started = true; db = makeStore(fsM, fdb); startShared(); }
+    } else {
+      if(started){ location.reload(); return; }
+      setSync('local'); $('sync').querySelector('span').textContent = 'Not signed in';
+      gate('login');
+      try{ $('li-email').value = localStorage.getItem('boardTracker.email') || ''; }catch(e){}
+      ($('li-email').value ? $('li-pass') : $('li-email')).focus();
+    }
+  });
+
+  $('login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = $('li-email').value.trim(), pass = $('li-pass').value;
+    const err = $('login-err'); err.hidden = true;
+    $('li-go').disabled = true; $('li-go').textContent = 'Signing in…';
+    try{
+      await authM.signInWithEmailAndPassword(auth, email, pass);
+      try{ localStorage.setItem('boardTracker.email', email); }catch(x){}
+      $('li-pass').value = '';
+    }catch(x){
+      const c = x && x.code || '';
+      err.textContent = c.includes('network') ? 'No signal. Check your connection and try again.'
+        : c.includes('too-many') ? 'Too many tries. Wait a few minutes, then try again.'
+        : 'That email or password is wrong. Check them and try again.';
+      err.hidden = false;
+    }
+    $('li-go').disabled = false; $('li-go').textContent = 'Sign in';
+  });
+
+  $('signout').onclick = () => openBox('Sign out?', '<p>You\'ll need the team login to get back in on this device.</p>', 'Sign out', () => { authM.signOut(auth); }, true);
+}
+$('retry').onclick = () => location.reload();
+
+startFirebase();
+</script>
+</body>
+</html>
