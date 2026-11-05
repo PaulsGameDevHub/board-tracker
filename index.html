@@ -177,6 +177,21 @@
   .login-err{background:var(--warn-wash);color:var(--warn);border:1px solid #e2b8a8;border-radius:var(--radius);padding:10px 12px;font-size:14px;margin:6px 0 4px;}
   /* Until someone signs in, only the sign-in card shows */
   body.gate main > :not(.login), body.gate .slip-wrap, body.gate .mbar{display:none !important;}
+  /* To order panel goes red when orders are waiting */
+  .slip-head{transition:background .2s;}
+  .slip-head.alert{background:var(--warn);}
+  .slip-head.alert .ref{color:#f6e3dc;}
+  .mbar.alert{background:var(--warn);}
+  .mbar.alert .m-value small{color:#f6e3dc;}
+  .mbar.alert button{background:#fff;color:var(--warn);}
+  #shorts .li{align-items:center;}
+  .to-req{flex:1 1 auto;min-width:0;background:none;border:none;padding:4px 0;text-align:left;cursor:pointer;
+    color:var(--ink);font:inherit;font-size:15px;font-weight:600;overflow-wrap:break-word;min-height:44px;}
+  .to-req:hover{color:var(--accent-deep);}
+  #shorts .chip{flex:0 0 auto;}
+  @keyframes flash{0%{box-shadow:0 0 0 4px var(--accent);}100%{box-shadow:0 0 0 0 transparent;}}
+  .req.flash{animation:flash 1.4s ease-out;}
+  @media (prefers-reduced-motion: reduce){.req.flash{animation:none;outline:3px solid var(--accent);}}
   /* Order requests */
   .reqs{margin-top:40px;}
   .req-form{margin-bottom:16px;}
@@ -313,10 +328,10 @@
 
       <aside class="slip-wrap" id="slip">
         <div class="slip">
-          <div class="slip-head"><h2>To order</h2><span class="ref" id="slip-date"></span></div>
+          <div class="slip-head" id="slip-head"><h2 id="slip-title">To order</h2><span class="ref" id="slip-date"></span></div>
           <div class="slip-body">
             <div id="shorts"></div>
-            <div class="total"><span class="lbl">Boards to order</span><span class="amt" id="short-total">0</span></div>
+            <div class="total"><span class="lbl">Orders to place</span><span class="amt" id="short-total">0</span></div>
             <div class="actions">
               <button class="btn primary" id="copy">Copy order list</button>
             </div>
@@ -330,7 +345,7 @@
     </div>
   </div>
 
-  <div class="mbar"><div class="m-value"><small>Boards to order</small><span id="m-short">0</span></div><button id="m-show">See list</button></div>
+  <div class="mbar" id="mbar"><div class="m-value"><small>Orders to place</small><span id="m-short">0</span></div><button id="m-show">See list</button></div>
   <div class="toast" id="toast"></div>
   <dialog id="dlg">
     <div class="slip-head"><h2 id="dlg-title"></h2></div>
@@ -610,24 +625,20 @@ function updateSummary(){
   const all = sorted().map(B => ({B, k: calc(B)}));
   $('n-boards').textContent = plural(all.reduce((s, x) => s + x.k.have, 0), 'board') + ' in stock';
 
-  const shorts = all.filter(x => x.k.toOrder);
-  $('shorts').innerHTML = shorts.length ? shorts.map(({B, k}) => {
-    const who = B.customers.filter(c => k.per[c.id].short).map(c => c.name + ' ' + k.per[c.id].short).join(', ');
-    return `<div class="li"><span>${esc(B.name)}<span class="who">${esc(who)}</span></span><span class="amt bad">${k.toOrder}</span></div>`;
-  }).join('') : `<div class="empty">${boards.some(B => B.customers.length) ? 'Nothing to order. Every customer is covered.' : 'Add customers to a board to see what to order.'}</div>`;
-  const tot = shorts.reduce((s, x) => s + x.k.toOrder, 0);
-  $('short-total').textContent = tot;
-  $('short-total').classList.toggle('bad', tot > 0);
-  $('m-short').textContent = tot;
+  drawToOrder();
 
   const dated = [];
   all.forEach(({B}) => B.customers.forEach(c => {
     if(c.ordered && c.date && num(c.onorder) && stillNeed(c)) dated.push({B, c});
   }));
-  dated.sort((x, y) => x.c.date.localeCompare(y.c.date));
-  $('deliveries').innerHTML = dated.length ? dated.slice(0, 8).map(({B, c}) => `
-    <div class="li"><span>${esc(B.name)} × ${Math.min(num(c.onorder), stillNeed(c))}<span class="who">${esc(c.name)}</span></span><span class="amt ${isDue(c) ? 'bad' : ''}">${isDue(c) ? (c.date < todayISO() ? 'Late' : 'Today') : fmtDate(c.date)}</span></div>`).join('')
-    : '<div class="hint" style="padding:6px 0">No deliveries expected. Mark a customer as ordered and add a date.</div>';
+  const rows = dated.map(({B, c}) => ({date: c.date, due: isDue(c),
+    html: `${esc(B.name)} × ${Math.min(num(c.onorder), stillNeed(c))}<span class="who">${esc(c.name)}</span>`}));
+  (typeof reqs !== 'undefined' ? reqs : []).filter(r => r.status === 'ordered' && r.date).forEach(r =>
+    rows.push({date: r.date, due: reqDue(r), html: `${esc(r.text)}<span class="who">Stock order</span>`}));
+  rows.sort((x, y) => x.date.localeCompare(y.date));
+  $('deliveries').innerHTML = rows.length ? rows.slice(0, 8).map(x => `
+    <div class="li"><span>${x.html}</span><span class="amt ${x.due ? 'bad' : ''}">${x.due ? (x.date < todayISO() ? 'Late' : 'Today') : fmtDate(x.date)}</span></div>`).join('')
+    : '<div class="hint" style="padding:6px 0">Nothing on its way. Add an expected date when you mark boards or stock as ordered.</div>';
 
   const spares = all.filter(x => num(x.B.spare) || num(x.B.halves));
   $('spares').innerHTML = spares.length ? spares.map(({B, k}) => {
@@ -865,7 +876,26 @@ function reqState(r){
   return r.level === 'out' ? {cls: 's-short', chip: 'Out of stock'} : {cls: 's-spare', chip: 'Running low'};
 }
 
+/* Right-hand panel: stock orders waiting to be placed. Goes red when there are any. */
+function drawToOrder(){
+  const pending = (typeof reqs !== 'undefined' ? reqs : []).filter(r => r.status === 'requested')
+    .sort((a, b) => (a.level === 'out' ? 0 : 1) - (b.level === 'out' ? 0 : 1) || (a.createdAt || '').localeCompare(b.createdAt || ''));
+  const n = pending.length;
+  $('shorts').innerHTML = n ? pending.map(r => `
+    <div class="li"><button class="to-req" data-goto="${r.id}">${esc(r.text)}<span class="who">Requested ${fmtDate(dayOf(r.createdAt))}</span></button>
+      <span class="chip ${r.level === 'out' ? 's-short' : 's-spare'}">${r.level === 'out' ? 'Out' : 'Low'}</span></div>`).join('')
+    : '<div class="empty">No orders waiting. Requests appear here until they\'re ordered.</div>';
+  $('short-total').textContent = n;
+  $('short-total').classList.toggle('bad', n > 0);
+  $('m-short').textContent = n;
+  $('slip-head').classList.toggle('alert', n > 0);
+  $('mbar').classList.toggle('alert', n > 0);
+  $('slip-title').textContent = n ? 'Orders to place' : 'To order';
+}
+
 function drawRequests(){
+  drawToOrder();
+  if(typeof updateSummary === 'function') updateSummary();
   const list = activeReqs();
   $('n-reqs').textContent = list.length ? plural(list.length, 'request') : '';
   $('req-list').innerHTML = list.length ? list.map(r => {
@@ -884,7 +914,7 @@ function drawRequests(){
           <input id="rd-${r.id}" type="date" data-rdate="${r.id}" value="${esc(r.date)}"></div>
         <button class="btn primary sm" data-rdelivered="${r.id}">Delivered</button>
         <button class="btn ghost sm wide" data-rundo="${r.id}">Not ordered yet</button>`;
-    return `<div class="req ${st.cls}">
+    return `<div class="req ${st.cls}" id="card-${r.id}">
       <div class="req-top">
         <div class="req-text">${esc(r.text)}<span class="req-meta">${meta}</span></div>
         <span class="chip ${st.cls}">${st.chip}</span>
@@ -986,6 +1016,12 @@ function startRequests(){
   }, () => {});
 }
 $('m-show').onclick = () => $('slip').scrollIntoView({behavior:'smooth'});
+$('shorts').addEventListener('click', e => {
+  const b = e.target.closest('[data-goto]'); if(!b) return;
+  const card = $('card-' + b.dataset.goto); if(!card) return;
+  card.scrollIntoView({behavior:'smooth', block:'center'});
+  card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+});
 
 function copyText(text){
   const ok = () => toast('Order list copied. Paste it into a text or email.');
