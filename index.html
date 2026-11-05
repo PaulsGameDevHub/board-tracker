@@ -493,6 +493,9 @@ function calc(B){
   else if(spareLeft) { cls = 's-spare'; text = spareLeft + ' spare'; }
   else if(B.customers.length) { cls = 's-ok'; text = 'Covered'; }
   else { cls = 's-none'; text = 'None'; }
+  // Half boards (cut-offs) are shown in the chip but never change the colour or the shortfall
+  const h = num(B.halves);
+  if(h){ if(cls === 's-none'){ cls = 's-spare'; text = h + ' half'; } else text += ` · ${h} half`; }
   return {per, toOrder, spareLeft, have, need, next: dates[0] || '', due, cls, text};
 }
 
@@ -534,7 +537,7 @@ function drawBoards(){
           <span class="chip ${k.cls}">${k.text}</span>
           ${isOpen ? `<button class="btn ghost edit-btn can-edit" data-edit="${B.id}" aria-label="Edit ${esc(B.name)}">Edit colour</button>` : ''}
         </div>
-        <div class="qty ${k.cls}" aria-label="${k.have} ${esc(B.name)} boards${num(B.halves) ? ', plus ' + num(B.halves) + ' half' : ''}">${k.have}${num(B.halves) ? `<small>+${num(B.halves)} half</small>` : ''}</div>
+        <div class="qty ${k.cls}" aria-label="${k.have} ${esc(B.name)} boards${num(B.halves) ? ', plus ' + num(B.halves) + ' half' : ''}">${k.have}</div>
       </div>
       ${isOpen ? drawBody(B, k) : ''}
     </div>`;
