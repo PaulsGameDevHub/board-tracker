@@ -49,10 +49,13 @@
     white-space:nowrap;font-weight:600;
   }
   .chip.s-none{font-weight:400;background:transparent;}
+  .qty small{font-size:11px;font-weight:600;letter-spacing:.02em;margin-top:2px;white-space:nowrap;}
+  /* Spare card: full boards left, half boards right */
+  .spare-fields{justify-content:space-between;}
 
   /* Read-only count on the main screen */
   .qty{
-    min-width:68px;height:50px;padding:0 10px;display:grid;place-items:center;border-radius:var(--radius);
+    min-width:68px;min-height:50px;padding:4px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:var(--radius);
     border:1px solid var(--sl);background:var(--sw);color:var(--s);
     font-family:var(--font-mono);font-weight:600;font-size:20px;font-variant-numeric:tabular-nums;line-height:1;
   }
@@ -80,7 +83,7 @@
   .cust.spare-card .cname{color:var(--amber);}
   .cust-date{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;}
   .cust-fields{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;}
-  .fld .lbl{display:block;font-size:11px;color:var(--ink-soft);margin-bottom:4px;font-family:var(--font-mono);letter-spacing:.04em;text-transform:uppercase;}
+  .fld .lbl{display:block;font-size:14px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;font-family:var(--font-mono);letter-spacing:.04em;text-transform:uppercase;}
   .cust input[type=date]{
     height:52px;border:1px solid var(--line-strong);border-radius:var(--radius);
     padding:8px 10px;background:#fff;color:var(--ink);font-family:var(--font-mono);font-size:16px;
@@ -100,7 +103,7 @@
   .stepper button:disabled{color:var(--line-strong);cursor:not-allowed;}
   .stepper .val{
     min-width:62px;height:52px;padding:0 8px;display:grid;place-items:center;border-top:1px solid var(--sl);border-bottom:1px solid var(--sl);
-    background:var(--sw);color:var(--s);font-family:var(--font-mono);font-weight:600;font-size:22px;font-variant-numeric:tabular-nums;
+    background:var(--sw);color:var(--s);font-family:var(--font-mono);font-weight:700;font-size:28px;font-variant-numeric:tabular-nums;
   }
 
   /* Ordered? two buttons, the chosen one fills with colour */
@@ -328,7 +331,7 @@ const sorted = () => boards.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 
 const tidyCust = c => ({id: c.id || uid(), name: c.name || 'Customer', need: num(c.need), have: num(c.have),
   ordered: !!c.ordered, onorder: num(c.onorder), date: c.date || '', ...(c.notDelivered ? {notDelivered: c.notDelivered} : {})});
 const tidyBoard = (B, i) => ({id: B.id || uid(), name: String(B.name || 'Board'), order: Number.isFinite(B.order) ? B.order : i,
-  spare: num(B.spare), customers: (B.customers || []).map(tidyCust)});
+  spare: num(B.spare), halves: num(B.halves), customers: (B.customers || []).map(tidyCust)});
 
 /* What this browser had saved before (older versions included), or the starting list */
 function loadLocal(){
@@ -450,7 +453,7 @@ function drawBoards(){
     const k = calc(B), isOpen = open === B.id;
     const sub = B.customers.length
       ? `Needed ${k.need} · ${plural(B.customers.length, 'customer')}${k.due ? ` · <b class="due-flag">delivery due, check it</b>` : k.next ? ` · next delivery <b>${fmtDate(k.next)}</b>` : ''}`
-      : (num(B.spare) ? 'Spare only' : 'No customers');
+      : (num(B.spare) || num(B.halves) ? 'Spare only' : 'No customers');
     return `<div class="brd ${isOpen ? 'open' : ''}" id="brd-${B.id}">
       <div class="brd-head">
         <button class="brd-toggle" data-toggle="${B.id}" aria-expanded="${isOpen}">
@@ -460,7 +463,7 @@ function drawBoards(){
           <span class="chip ${k.cls}">${k.text}</span>
           ${isOpen ? `<button class="btn ghost edit-btn can-edit" data-edit="${B.id}" aria-label="Edit ${esc(B.name)}">Edit colour</button>` : ''}
         </div>
-        <div class="qty ${k.cls}" aria-label="${k.have} ${esc(B.name)} boards">${k.have}</div>
+        <div class="qty ${k.cls}" aria-label="${k.have} ${esc(B.name)} boards${num(B.halves) ? ', plus ' + num(B.halves) + ' half' : ''}">${k.have}${num(B.halves) ? `<small>+${num(B.halves)} half</small>` : ''}</div>
       </div>
       ${isOpen ? drawBody(B, k) : ''}
     </div>`;
@@ -480,11 +483,12 @@ function stepper(bid, id, field, val, cls, minusOff, plusOff){
 }
 
 function drawBody(B, k){
-  const bid = B.id, spare = num(B.spare);
-  const spareCard = `<div class="cust spare-card ${spare ? 's-spare' : 's-none'}">
-      <div class="cust-top"><div class="cname">Spare<span class="state" style="color:var(--ink-soft);font-weight:400">Boards not for a customer yet${k.spareLeft !== spare ? ` · ${spare - k.spareLeft} earmarked below` : ''}</span></div></div>
-      <div class="cust-fields">
-        <div class="fld"><span class="lbl">Got</span>${stepper(bid, 'spare', 'spare', spare, spare ? 's-spare' : 's-none', spare <= 0, false)}</div>
+  const bid = B.id, spare = num(B.spare), halves = num(B.halves);
+  const spareCard = `<div class="cust spare-card ${spare || halves ? 's-spare' : 's-none'}">
+      <div class="cust-top"><div class="cname">Spare<span class="state" style="color:var(--ink-soft);font-weight:400">Boards not for a customer yet. Half boards are cut-offs${k.spareLeft !== spare ? ` · ${spare - k.spareLeft} earmarked below` : ''}</span></div></div>
+      <div class="cust-fields spare-fields">
+        <div class="fld"><span class="lbl">Full boards</span>${stepper(bid, 'spare', 'spare', spare, spare ? 's-spare' : 's-none', spare <= 0, false)}</div>
+        <div class="fld"><span class="lbl">Half boards</span>${stepper(bid, 'spare', 'halves', halves, halves ? 's-spare' : 's-none', halves <= 0, false)}</div>
       </div>
     </div>`;
 
@@ -551,10 +555,11 @@ function updateSummary(){
     <div class="li"><span>${esc(B.name)} × ${Math.min(num(c.onorder), stillNeed(c))}<span class="who">${esc(c.name)}</span></span><span class="amt ${isDue(c) ? 'bad' : ''}">${isDue(c) ? (c.date < todayISO() ? 'Late' : 'Today') : fmtDate(c.date)}</span></div>`).join('')
     : '<div class="hint" style="padding:6px 0">No deliveries expected. Mark a customer as ordered and add a date.</div>';
 
-  const spares = all.filter(x => num(x.B.spare));
+  const spares = all.filter(x => num(x.B.spare) || num(x.B.halves));
   $('spares').innerHTML = spares.length ? spares.map(({B, k}) => {
-    const s = num(B.spare), used = s - k.spareLeft;
-    return `<div class="li"><span>${esc(B.name)}${used ? `<span class="who">${used} earmarked for customers</span>` : ''}</span><span class="amt spare">${s}</span></div>`;
+    const s = num(B.spare), h = num(B.halves), used = s - k.spareLeft;
+    const notes = [h ? `${h} half board${h === 1 ? '' : 's'} / cut-off${h === 1 ? '' : 's'}` : '', used ? `${used} earmarked for customers` : ''].filter(Boolean).join(' · ');
+    return `<div class="li"><span>${esc(B.name)}${notes ? `<span class="who">${notes}</span>` : ''}</span><span class="amt spare">${s}${h ? ` + ${h} half` : ''}</span></div>`;
   }).join('') : '<div class="hint" style="padding:6px 0">No spare boards.</div>';
 }
 
@@ -642,6 +647,7 @@ $('boards').addEventListener('click', e => {
   if(t.dataset.step){
     const d = Number(t.dataset.step), f = t.dataset.f;
     if(f === 'spare') B.spare = Math.max(0, num(B.spare) + d);
+    else if(f === 'halves') B.halves = Math.max(0, num(B.halves) + d);
     else {
       const c = cust(t.dataset.c); if(!c) return;
       if(f === 'have'){
