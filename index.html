@@ -177,6 +177,54 @@
   .login-err{background:var(--warn-wash);color:var(--warn);border:1px solid #e2b8a8;border-radius:var(--radius);padding:10px 12px;font-size:14px;margin:6px 0 4px;}
   /* Until someone signs in, only the sign-in card shows */
   body.gate main > :not(.login), body.gate .slip-wrap, body.gate .mbar{display:none !important;}
+  /* Order requests */
+  .reqs{margin-top:40px;}
+  .req-form{margin-bottom:16px;}
+  .req-form textarea{min-height:92px;font-size:16px;line-height:1.4;resize:vertical;}
+  .req-form-row{display:flex;flex-wrap:wrap;gap:14px 18px;align-items:flex-end;justify-content:space-between;margin-top:6px;}
+  .req-submit{min-height:52px;font-size:16px;padding:12px 22px;}
+  .seg.lvl button{min-width:120px;}
+  .seg button.on-low{background:var(--amber);border-color:var(--amber);color:#fff;}
+  #req-list{display:flex;flex-direction:column;gap:12px;}
+  .req{
+    border:1px solid var(--line-strong);border-left:6px solid var(--s);border-radius:var(--radius);
+    background:var(--sw);padding:14px 16px;display:flex;flex-direction:column;gap:12px;
+  }
+  .req-top{display:flex;align-items:flex-start;gap:12px;}
+  .req-text{flex:1 1 auto;min-width:0;font-size:17px;font-weight:600;line-height:1.35;white-space:pre-wrap;overflow-wrap:break-word;}
+  .req-meta{display:block;font-family:var(--font-mono);font-size:12px;font-weight:400;color:var(--ink-soft);margin-top:4px;white-space:normal;}
+  .req .chip{align-self:flex-start;}
+  .req-actions{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-end;}
+  .req input[type=date]{
+    height:52px;border:1px solid var(--line-strong);border-radius:var(--radius);
+    padding:8px 10px;background:#fff;color:var(--ink);font-family:var(--font-mono);font-size:16px;
+  }
+  .req-hist{margin-top:18px;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--panel);}
+  .req-hist summary{
+    cursor:pointer;padding:14px 16px;min-height:52px;font-family:var(--font-display);font-weight:600;font-size:15px;
+    display:flex;align-items:center;gap:10px;list-style:none;
+  }
+  .req-hist summary::-webkit-details-marker{display:none;}
+  .req-hist summary::before{content:"";width:8px;height:8px;border-right:2px solid var(--ink-soft);border-bottom:2px solid var(--ink-soft);transform:rotate(-45deg);transition:transform .15s;margin-right:4px;}
+  .req-hist[open] summary::before{transform:rotate(45deg);}
+  #hist-list{max-height:320px;overflow-y:auto;padding:0 16px 12px;}
+  #hist-list .li span:first-child{min-width:0;overflow-wrap:break-word;}
+  @media(max-width:600px){
+    .req-form-row{flex-direction:column;align-items:stretch;}
+    .req-form-row .seg{width:100%;}
+    .req-form-row .seg button{flex:1;min-width:0;}
+    .req-actions{display:grid;grid-template-columns:1fr 1fr;}
+    .req-actions > *{min-width:0;}
+    .req-actions .wide{grid-column:1 / -1;}
+    .req-actions .seg{width:100%;}
+    .req-actions .seg button{flex:1;min-width:0;}
+    .req input[type=date]{width:100%;font-size:15px;padding:8px 6px;}
+    .req-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 10px;}
+    .req-top .req-text{grid-column:1;grid-row:1;}
+    .req-top .chip{grid-column:1;grid-row:2;justify-self:start;}
+    .req-top .x{grid-column:2;grid-row:1 / 3;}
+  }
+  body.readonly .req-form,body.readonly .req-actions{display:none !important;}
   /* Sync status */
   .sync{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;
     text-transform:uppercase;color:var(--ink-soft);border:1px solid var(--line-strong);border-radius:var(--radius);padding:6px 10px;background:var(--panel);}
@@ -238,6 +286,29 @@
         <p class="hint" style="margin:0 0 6px">The number is how many boards you've got. Tap a board to see its customers and change counts.</p>
         <div id="boards"></div>
         <button class="btn ghost add-board" id="add-board">+ Add board colour</button>
+
+        <section class="reqs" id="reqs" aria-labelledby="reqs-title">
+          <h2 class="section-title" id="reqs-title">Order requests <span class="count" id="n-reqs"></span></h2>
+          <p class="hint" style="margin:8px 0 12px">For anything else that's running low: hinges, edging, screws, glue. Everyone sees the request until it's delivered.</p>
+          <form class="card req-form" id="req-form">
+            <div class="field"><label for="req-text">What do you need?</label>
+              <textarea id="req-text" rows="3" placeholder="e.g. Blum soft-close hinges, 2 boxes"></textarea></div>
+            <div class="req-form-row">
+              <div class="fld"><span class="lbl">How urgent?</span>
+                <div class="seg lvl" role="group" aria-label="How urgent?">
+                  <button type="button" data-newlvl="low" class="on-low" aria-pressed="true">Running low</button>
+                  <button type="button" data-newlvl="out" aria-pressed="false">Out of stock</button>
+                </div></div>
+              <button type="submit" class="btn primary req-submit">Submit request</button>
+            </div>
+          </form>
+          <div id="req-list"></div>
+          <details class="req-hist" id="req-hist">
+            <summary>Order history <span class="count" id="n-hist"></span></summary>
+            <p class="hint" style="margin:0;padding:0 16px 4px">Delivered requests stay here for 30 days, then delete themselves.</p>
+            <div id="hist-list"></div>
+          </details>
+        </section>
       </main>
 
       <aside class="slip-wrap" id="slip">
@@ -726,9 +797,191 @@ $('boards').addEventListener('keydown', e => {
 
 $('copy').onclick = () => {
   const lines = sorted().map(B => ({B, n: calc(B).toOrder})).filter(x => x.n).map(x => `${x.B.name} x ${x.n}`);
-  if(!lines.length){ toast('Nothing to order'); return; }
-  copyText(`Boards to order (${new Date().toLocaleDateString('en-GB')})\n` + lines.join('\n'));
+  const extra = activeReqs().filter(r => r.status === 'requested').map(r => `${r.text}${r.level === 'out' ? ' (out of stock)' : ''}`);
+  if(!lines.length && !extra.length){ toast('Nothing to order'); return; }
+  let text = `Order list (${new Date().toLocaleDateString('en-GB')})`;
+  if(lines.length) text += '\n\nBoards:\n' + lines.join('\n');
+  if(extra.length) text += '\n\nOther items:\n' + extra.map(t => '- ' + t).join('\n');
+  copyText(text);
 };
+
+/* ==========================================================
+   ORDER REQUESTS
+   Each request is one document "meta/req-<id>" (the meta collection
+   is already allowed by the database rules, so no rule change needed).
+   status: requested -> ordered -> delivered (then kept 30 days as history)
+   ========================================================== */
+let reqs = [];
+let newLevel = 'low';
+const KEEP_DAYS = 30;
+const tidyReq = r => ({id: r.id, text: String(r.text || '').slice(0, 1000), level: r.level === 'out' ? 'out' : 'low',
+  status: ['requested','ordered','delivered'].includes(r.status) ? r.status : 'requested',
+  date: r.date || '', createdAt: r.createdAt || '', orderedAt: r.orderedAt || '', deliveredAt: r.deliveredAt || ''});
+const reqById = id => reqs.find(r => r.id === id);
+const activeReqs = () => reqs.filter(r => r.status !== 'delivered').sort((a, b) => {
+  const rank = r => r.status === 'requested' ? (r.level === 'out' ? 0 : 1) : 2;
+  return rank(a) - rank(b) || (a.status === 'ordered' ? (a.date || '9999').localeCompare(b.date || '9999') : 0)
+    || (a.createdAt || '').localeCompare(b.createdAt || '');
+});
+const dayOf = iso => iso ? iso.slice(0, 10) : '';
+const daysAgo = iso => iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 864e5) : 0;
+const reqDue = r => r.status === 'ordered' && r.date && r.date <= todayISO();
+
+const reqWriting = new Map();
+function saveReq(id){
+  if(!db) return;
+  const st = reqWriting.get(id);
+  if(st){ st.dirty = true; return; }
+  const me = {dirty: true}; reqWriting.set(id, me);
+  setSync('saving');
+  (async () => {
+    try{
+      while(me.dirty){
+        me.dirty = false;
+        const r = reqById(id), ref = db.doc('meta/' + id);
+        if(r){ const {id: _, ...body} = tidyReq(r); body.kind = 'request'; await ref.set(body); }
+        else await ref.delete();
+      }
+      reqWriting.delete(id);
+      if(!reqWriting.size && !writing.size) setSync('live');
+    }catch(e){
+      reqWriting.delete(id);
+      setSync('error'); toast("Couldn't save that request. Check your signal and try again.");
+    }
+  })();
+}
+
+function reqState(r){
+  if(r.status === 'ordered'){
+    if(reqDue(r)){
+      const late = r.date < todayISO();
+      return {cls: late ? 's-short' : 's-spare', chip: late ? 'Delivery late' : 'Due today'};
+    }
+    return {cls: 's-ok', chip: 'Ordered'};
+  }
+  return r.level === 'out' ? {cls: 's-short', chip: 'Out of stock'} : {cls: 's-spare', chip: 'Running low'};
+}
+
+function drawRequests(){
+  const list = activeReqs();
+  $('n-reqs').textContent = list.length ? plural(list.length, 'request') : '';
+  $('req-list').innerHTML = list.length ? list.map(r => {
+    const st = reqState(r);
+    const meta = [`Requested ${fmtDate(dayOf(r.createdAt))}`,
+      r.status === 'ordered' ? `ordered ${fmtDate(dayOf(r.orderedAt))}` : '',
+      r.status === 'ordered' && r.date ? `expected ${fmtDate(r.date)}` : ''].filter(Boolean).join(' · ');
+    const actions = r.status === 'requested' ? `
+        <div class="fld wide"><span class="lbl">How urgent?</span>
+          <div class="seg lvl" role="group" aria-label="How urgent?">
+            <button data-lvl="low" data-r="${r.id}" class="${r.level === 'low' ? 'on-low' : ''}" aria-pressed="${r.level === 'low'}">Running low</button>
+            <button data-lvl="out" data-r="${r.id}" class="${r.level === 'out' ? 'on-no' : ''}" aria-pressed="${r.level === 'out'}">Out of stock</button>
+          </div></div>
+        <button class="btn primary sm wide" data-rordered="${r.id}">Mark as ordered</button>` : `
+        <div class="fld"><label class="lbl" for="rd-${r.id}">Expected delivery</label>
+          <input id="rd-${r.id}" type="date" data-rdate="${r.id}" value="${esc(r.date)}"></div>
+        <button class="btn primary sm" data-rdelivered="${r.id}">Delivered</button>
+        <button class="btn ghost sm wide" data-rundo="${r.id}">Not ordered yet</button>`;
+    return `<div class="req ${st.cls}">
+      <div class="req-top">
+        <div class="req-text">${esc(r.text)}<span class="req-meta">${meta}</span></div>
+        <span class="chip ${st.cls}">${st.chip}</span>
+        <button class="x" data-rdel="${r.id}" title="Remove request" aria-label="Remove request">×</button>
+      </div>
+      <div class="req-actions">${actions}</div>
+    </div>`;
+  }).join('') : '<div class="empty">No order requests. Type one above when something is running low.</div>';
+
+  const hist = reqs.filter(r => r.status === 'delivered').sort((a, b) => (b.deliveredAt || '').localeCompare(a.deliveredAt || ''));
+  $('n-hist').textContent = hist.length ? '· ' + hist.length : '';
+  $('hist-list').innerHTML = hist.length ? hist.map(r => `
+    <div class="li"><span>${esc(r.text)}<span class="who">Requested ${fmtDate(dayOf(r.createdAt))}${r.orderedAt ? ' · ordered ' + fmtDate(dayOf(r.orderedAt)) : ''}</span></span>
+      <span class="amt">Delivered ${fmtDate(dayOf(r.deliveredAt))}</span></div>`).join('')
+    : '<div class="hint" style="padding:6px 0">Nothing delivered in the last 30 days.</div>';
+}
+
+/* New request form */
+$('req-form').addEventListener('click', e => {
+  const b = e.target.closest('[data-newlvl]'); if(!b) return;
+  newLevel = b.dataset.newlvl;
+  $('req-form').querySelectorAll('[data-newlvl]').forEach(x => {
+    const on = x.dataset.newlvl === newLevel;
+    x.className = on ? (newLevel === 'out' ? 'on-no' : 'on-low') : '';
+    x.setAttribute('aria-pressed', on);
+  });
+});
+$('req-form').addEventListener('submit', e => {
+  e.preventDefault();
+  if(readOnly || !db) return;
+  const text = $('req-text').value.trim();
+  if(!text){ toast('Type what you need first'); $('req-text').focus(); return; }
+  const r = {id: 'req-' + uid(), text, level: newLevel, status: 'requested', date: '', createdAt: new Date().toISOString(), orderedAt: '', deliveredAt: ''};
+  reqs.push(r); saveReq(r.id); drawRequests();
+  $('req-text').value = '';
+  $('req-form').querySelector('[data-newlvl=low]').click();
+  toast('Request added');
+});
+
+/* Buttons on each request */
+$('req-list').addEventListener('click', e => {
+  const t = e.target.closest('button'); if(!t || readOnly) return;
+  const d = t.dataset;
+  if(d.lvl){ const r = reqById(d.r); if(!r) return; r.level = d.lvl; saveReq(r.id); drawRequests(); return; }
+  if(d.rordered){
+    const r = reqById(d.rordered); if(!r) return;
+    openBox('Mark as ordered', `
+      <p style="margin-bottom:14px"><b>${esc(r.text)}</b></p>
+      <div class="field"><label for="ro-date">Expected delivery date (optional)</label><input id="ro-date" type="date" style="height:52px"></div>`,
+      'Mark as ordered', () => {
+        const cur = reqById(r.id); if(!cur) return;
+        cur.status = 'ordered'; cur.orderedAt = new Date().toISOString(); cur.date = $('ro-date').value || '';
+        saveReq(cur.id); drawRequests(); toast('Marked as ordered');
+      });
+    return;
+  }
+  if(d.rdelivered){
+    const r = reqById(d.rdelivered); if(!r) return;
+    r.status = 'delivered'; r.deliveredAt = new Date().toISOString();
+    saveReq(r.id); drawRequests(); toast('Delivered. Moved to order history.');
+    return;
+  }
+  if(d.rundo){
+    const r = reqById(d.rundo); if(!r) return;
+    r.status = 'requested'; r.orderedAt = ''; r.date = '';
+    saveReq(r.id); drawRequests();
+    return;
+  }
+  if(d.rdel){
+    const r = reqById(d.rdel); if(!r) return;
+    openBox('Remove request?', `<p>Remove <b>${esc(r.text)}</b>? It won't go into the order history.</p>`, 'Remove', () => {
+      reqs = reqs.filter(x => x.id !== r.id); saveReq(r.id); drawRequests(); toast('Request removed');
+    }, true);
+  }
+});
+$('req-list').addEventListener('change', e => {
+  const t = e.target; if(!t.dataset.rdate || readOnly) return;
+  const r = reqById(t.dataset.rdate); if(!r) return;
+  r.date = t.value; saveReq(r.id); drawRequests();
+});
+
+/* Live updates, plus tidy-up of history older than 30 days */
+let prunedOnce = false;
+function startRequests(){
+  drawRequests();
+  db.collection('meta').onSnapshot(snap => {
+    const incoming = snap.docs.filter(d => d.exists && d.id.startsWith('req-')).map(d => tidyReq({...d.data(), id: d.id}));
+    const mine = reqs.filter(r => reqWriting.has(r.id));
+    reqs = incoming.filter(r => !reqWriting.has(r.id)).concat(mine);
+    // a request this device just removed shouldn't reappear while the delete is saving
+    reqs = reqs.filter(r => !(reqWriting.has(r.id) && !mine.some(m => m.id === r.id)));
+    if(!prunedOnce && !snap.metadata.fromCache && !readOnly){
+      prunedOnce = true;
+      reqs.filter(r => r.status === 'delivered' && daysAgo(r.deliveredAt) >= KEEP_DAYS).forEach(r => {
+        reqs = reqs.filter(x => x.id !== r.id); saveReq(r.id);
+      });
+    }
+    drawRequests();
+  }, () => {});
+}
 $('m-show').onclick = () => $('slip').scrollIntoView({behavior:'smooth'});
 
 function copyText(text){
@@ -798,6 +1051,7 @@ async function startShared(){
     setSync('offline');
     toast("Lost the connection to the shared list. Reopen the page to try again.");
   });
+  startRequests();
 }
 let pendingDraw = false;
 dlg.addEventListener('close', () => { if(pendingDraw){ pendingDraw = false; drawBoards(); } });
