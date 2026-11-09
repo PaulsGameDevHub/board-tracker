@@ -4,7 +4,9 @@ Keeps track of kitchen boards: which colours you've got, which customers they're
 what's been ordered and when it's due. Everyone on the team sees the same list, live, on
 any phone or PC.
 
-**Live app:** https://paulsgamedevhub.github.io/board-tracker/
+**Live apps:**
+- Board Tracker: https://paulsgamedevhub.github.io/board-tracker/
+- Stock Orders: https://paulsgamedevhub.github.io/board-tracker/orders.html
 
 ## How it works
 
@@ -25,7 +27,17 @@ any phone or PC.
 - Firestore security rules only allow that team login to read or write.
 - The Firebase settings in `index.html` are designed to be public; they are not a password.
 
+## Stock Orders (orders.html)
+
+- Request anything that needs ordering, marked Running low or Out of stock.
+- Mark as ordered with an expected delivery date; it flags when the date arrives.
+- Delivered moves it to the order history, which clears itself after 30 days.
+- Both pages share the same login and show orders waiting in the To order panel.
+
 ## Files
 
-- `index.html` – the app
+- `index.html` – Board Tracker
+- `orders.html` – Stock Orders
+- `app.js` – shared code for both pages (Firebase, sign-in, boards, orders)
+- `app.css` – styles for both pages
 - `style.css` – the PaulsGameDevHub house style

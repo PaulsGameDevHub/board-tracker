@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock Orders</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="brandline">PaulsGameDevHub</div>
+        <h1>Stock Orders</h1>
+        <p class="tagline">Anything that needs ordering: request it, order it, tick it off when it arrives.</p>
+      </div>
+      <div class="head-right">
+        <nav class="app-nav" aria-label="Apps">
+          <a href="./">Boards</a>
+          <a href="orders.html" aria-current="page">Orders<span class="badge" id="nav-badge" hidden></span></a>
+        </nav>
+        <div class="sync" id="sync" role="status" aria-live="polite"><i></i><span>Loading…</span></div>
+        <button class="btn ghost signout" id="signout" hidden>Sign out</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <main>
+        <div class="card login" id="login" hidden>
+          <h2>Sign in</h2>
+          <p class="hint" style="margin:0 0 14px">Use the team login. You only need to do this once on each phone or PC.</p>
+          <form id="login-form" autocomplete="on">
+            <div class="field"><label for="li-email">Email</label><input id="li-email" type="email" autocomplete="username" inputmode="email" required></div>
+            <div class="field"><label for="li-pass">Password</label><input id="li-pass" type="password" autocomplete="current-password" required></div>
+            <p class="login-err" id="login-err" hidden></p>
+            <button class="btn primary login-btn" type="submit" id="li-go">Sign in</button>
+          </form>
+        </div>
+        <div class="card login" id="noload" hidden>
+          <h2>Can't reach the shared list</h2>
+          <p style="margin:0 0 14px">Check your signal or Wi-Fi, then try again.</p>
+          <button class="btn primary login-btn" id="retry">Try again</button>
+        </div>
+        <section class="reqs top" id="reqs" aria-labelledby="reqs-title">
+          <h2 class="section-title" id="reqs-title">Order requests <span class="count" id="n-reqs"></span></h2>
+          <p class="hint" style="margin:8px 0 12px">For anything else that's running low: hinges, edging, screws, glue. Everyone sees the request until it's delivered.</p>
+          <form class="card req-form" id="req-form">
+            <div class="field"><label for="req-text">What do you need?</label>
+              <textarea id="req-text" rows="3" placeholder="e.g. Blum soft-close hinges, 2 boxes"></textarea></div>
+            <div class="req-form-row">
+              <div class="fld"><span class="lbl">How urgent?</span>
+                <div class="seg lvl" role="group" aria-label="How urgent?">
+                  <button type="button" data-newlvl="low" class="on-low" aria-pressed="true">Running low</button>
+                  <button type="button" data-newlvl="out" aria-pressed="false">Out of stock</button>
+                </div></div>
+              <button type="submit" class="btn primary req-submit">Submit request</button>
+            </div>
+          </form>
+          <div id="req-list"></div>
+          <details class="req-hist" id="req-hist">
+            <summary>Order history <span class="count" id="n-hist"></span></summary>
+            <p class="hint" style="margin:0;padding:0 16px 4px">Delivered requests stay here for 30 days, then delete themselves.</p>
+            <div id="hist-list"></div>
+          </details>
+        </section>
+      </main>
+
+      <aside class="slip-wrap" id="slip">
+        <div class="slip">
+          <div class="slip-head" id="slip-head"><h2 id="slip-title">To order</h2><span class="ref" id="slip-date"></span></div>
+          <div class="slip-body">
+            <div id="shorts"></div>
+            <div class="total"><span class="lbl">Orders to place</span><span class="amt" id="short-total">0</span></div>
+            <div class="actions">
+              <button class="btn primary" id="copy">Copy order list</button>
+            </div>
+            <div class="slip-sub">Next deliveries</div>
+            <div id="deliveries"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <p class="app-ver" id="app-ver">Stock Orders version 15 · 9 Nov 2026</p>
+  <div class="mbar" id="mbar"><div class="m-value"><small>Orders to place</small><span id="m-short">0</span></div><button id="m-show">See list</button></div>
+  <div class="toast" id="toast"></div>
+  <dialog id="dlg">
+    <div class="slip-head"><h2 id="dlg-title"></h2></div>
+    <form class="slip-body" id="dlg-form" method="dialog">
+      <div id="dlg-body"></div>
+      <div class="dlg-foot">
+        <button type="button" class="btn ghost" id="dlg-no">Cancel</button>
+        <button type="submit" class="btn primary" id="dlg-yes">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
